@@ -1,100 +1,60 @@
-// Trail Dashboard - IndexedDB Edition (Static/Offline-capable)
+// Outdoors Dashboard - Firebase Firestore Edition
 
 let hikes = [];
+let unsubscribe = null;
 
-// Sample trails for initial seeding
-const sampleTrails = [
-    { trailName: "Alum Cave Trail", location: "Great Smoky Mountains NP", distance: 5, elevation: 1150, difficulty: "Moderate", rating: 5, notes: "Beautiful arch, scenic views, popular" },
-    { trailName: "Abrams Falls", location: "Great Smoky Mountains NP", distance: 5, elevation: 780, difficulty: "Moderate", rating: 5, notes: "20-ft waterfall, stunning gorge" },
-    { trailName: "Grotto Falls", location: "Roaring Fork Motor Trail", distance: 2.6, elevation: 400, difficulty: "Easy", rating: 4, notes: "Walk behind the waterfall" },
-    { trailName: "Clingmans Dome", location: "Great Smoky Mountains NP", distance: 1.3, elevation: 330, difficulty: "Moderate", rating: 4, notes: "Highest point in TN, 360 views" },
-    { trailName: "Charlies Bunion", location: "Great Smoky Mountains NP", distance: 4.2, elevation: 900, difficulty: "Moderate", rating: 5, notes: "Rocky outcrop with amazing views" },
-    { trailName: "Mount Cammerer", location: "Great Smoky Mountains NP", distance: 5.5, elevation: 1200, difficulty: "Hard", rating: 5, notes: "Historic fire tower at summit" },
-    { trailName: "Rainbow Falls", location: "Great Smoky Mountains NP", distance: 5.4, elevation: 900, difficulty: "Moderate", rating: 4, notes: "80-ft waterfall" },
-    { trailName: "Chimney Tops", location: "Great Smoky Mountains NP", distance: 4, elevation: 1400, difficulty: "Hard", rating: 4, notes: "Rocky peak, steep climb" },
-    { trailName: "Ramsey Cascades", location: "Great Smoky Mountains NP", distance: 4, elevation: 1100, difficulty: "Hard", rating: 5, notes: "Highest waterfall in the park" },
-    { trailName: "Cades Cove Loop", location: "Great Smoky Mountains NP", distance: 11, elevation: 400, difficulty: "Easy", rating: 5, notes: "Wildlife, historic cabins, cycling" }
-];
-
-// IndexedDB Setup
-const DB_NAME = 'TrailDashboard';
-const DB_VERSION = 1;
-const STORE_NAME = 'hikes';
-let db;
-
-function initDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-            db = request.result;
-            resolve(db);
-        };
-        
-        request.onupgradeneeded = (event) => {
-            const database = event.target.result;
-            if (!database.objectStoreNames.contains(STORE_NAME)) {
-                const store = database.createObjectStore(STORE_NAME, { keyPath: 'id' });
-                store.createIndex('date', 'date', { unique: false });
+// Wait for Firebase to initialize
+function waitForFirebase() {
+    return new Promise((resolve) => {
+        const check = () => {
+            if (window.firebaseDb) {
+                resolve();
+            } else {
+                setTimeout(check, 100);
             }
         };
+        check();
     });
 }
 
-function dbGetAll() {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readonly');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-function dbAdd(hike) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.add(hike);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-function dbUpdate(hike) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.put(hike);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-function dbDelete(id) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.delete(id);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-}
+// Sample activities for initial seeding
+const sampleTrails = [
+    { trailName: "Alum Cave Trail", location: "Great Smoky Mountains NP", distance: 5, elevation: 1150, difficulty: "Moderate", type: "Hike", rating: 5, notes: "Beautiful arch, scenic views, popular" },
+    { trailName: "Abrams Falls", location: "Great Smoky Mountains NP", distance: 5, elevation: 780, difficulty: "Moderate", type: "Hike", rating: 5, notes: "20-ft waterfall, stunning gorge" },
+    { trailName: "Grotto Falls", location: "Roaring Fork Motor Trail", distance: 2.6, elevation: 400, difficulty: "Easy", type: "Hike", rating: 4, notes: "Walk behind the waterfall" },
+    { trailName: "Clingmans Dome", location: "Great Smoky Mountains NP", distance: 1.3, elevation: 330, difficulty: "Moderate", type: "Hike", rating: 4, notes: "Highest point in TN, 360 views" },
+    { trailName: "Charlies Bunion", location: "Great Smoky Mountains NP", distance: 4.2, elevation: 900, difficulty: "Moderate", type: "Hike", rating: 5, notes: "Rocky outcrop with amazing views" }
+];
 
 // Initialize app
 async function initApp() {
-    await initDB();
-    hikes = await dbGetAll();
+    await waitForFirebase();
     
-    if (hikes.length === 0) {
-        await seedData();
-        hikes = await dbGetAll();
-    }
+    // Subscribe to Firestore collection
+    const hikesRef = window.firebaseCollection(window.firebaseDb, 'hikes');
+    const q = window.firebaseQuery(hikesRef, window.firebaseOrderBy('date', 'desc'));
     
-    renderAll();
+    unsubscribe = window.firebaseOnSnapshot(q, (snapshot) => {
+        hikes = [];
+        snapshot.forEach((doc) => {
+            hikes.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Seed data if empty
+        if (hikes.length === 0) {
+            seedData();
+        } else {
+            renderAll();
+        }
+    });
+    
     setupEventListeners();
-    setupAuth();
+    
+    // Show dashboard
+    document.getElementById('statsSection').style.display = 'grid';
+    document.getElementById('goalsSection').style.display = 'block';
+    document.getElementById('filtersSection').style.display = 'flex';
+    document.getElementById('addBtn').style.display = 'inline-block';
 }
 
 // Seed sample data
@@ -102,33 +62,18 @@ async function seedData() {
     for (const trail of sampleTrails) {
         const hike = {
             ...trail,
-            id: Date.now() + Math.random(),
             date: getRandomDate(),
             duration: getEstimatedDuration(trail.distance),
             weather: "Clear, 65°F",
             gear: "Hiking boots, water, snacks",
-            createdAt: new Date().toISOString()
+            createdAt: window.firebaseServerTimestamp()
         };
-        await dbAdd(hike);
+        
+        await window.firebaseAddDoc(
+            window.firebaseCollection(window.firebaseDb, 'hikes'),
+            hike
+        );
     }
-}
-
-// Auth state (local-only mode)
-function setupAuth() {
-    // Always logged in for local mode
-    currentUser = { uid: 'local-user' };
-    document.getElementById('loginPrompt').style.display = 'none';
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('statsSection').style.display = 'grid';
-    document.getElementById('goalsSection').style.display = 'block';
-    document.getElementById('filtersSection').style.display = 'flex';
-    document.getElementById('addBtn').style.display = 'inline-block';
-}
-
-// Get all hikes (replacement for Firebase subscribe)
-async function refreshHikes() {
-    hikes = await dbGetAll();
-    renderAll();
 }
 
 // Stats Calculations
@@ -209,15 +154,15 @@ function renderGoals() {
 
 function renderHikes() {
     const search = document.getElementById('search').value.toLowerCase();
-    const difficulty = document.getElementById('filterDifficulty').value;
+    const filterType = document.getElementById('filterDifficulty').value;
     const sortBy = document.getElementById('sortBy').value;
     
     let filtered = hikes.filter(hike => {
         const matchSearch = !search || 
             hike.trailName?.toLowerCase().includes(search) || 
             hike.location?.toLowerCase().includes(search);
-        const matchDifficulty = !difficulty || hike.difficulty === difficulty;
-        return matchSearch && matchDifficulty;
+        const matchType = !filterType || hike.type === filterType;
+        return matchSearch && matchType;
     });
     
     // Sort
@@ -238,6 +183,7 @@ function renderHikes() {
             <div class="hike-meta">
                 <span>📍 ${hike.location || 'Unknown'}</span>
                 <span>📅 ${hike.date || 'N/A'}</span>
+                <span>${hike.type || 'Hike'}</span>
             </div>
             <div class="hike-stats">
                 <span>🥾 ${hike.distance || '?'} mi</span>
@@ -249,8 +195,8 @@ function renderHikes() {
             ${hike.gear ? `<div class="hike-gear">🎒 ${hike.gear}</div>` : ''}
             ${hike.notes ? `<div class="hike-notes">📝 ${hike.notes}</div>` : ''}
             <div class="hike-actions">
-                <button onclick="editHike(${hike.id})" class="btn-small">Edit</button>
-                <button onclick="deleteHike(${hike.id})" class="btn-small btn-danger">Delete</button>
+                <button onclick="editHike('${hike.id}')" class="btn-small">Edit</button>
+                <button onclick="deleteHike('${hike.id}')" class="btn-small btn-danger">Delete</button>
             </div>
         </div>
     `).join('');
@@ -258,81 +204,14 @@ function renderHikes() {
 
 // Event Listeners
 function setupEventListeners() {
-    // Add button
     document.getElementById('addBtn').addEventListener('click', () => openModal());
-    
-    // Modal
     document.getElementById('closeModal').addEventListener('click', closeModal);
     document.getElementById('cancelBtn').addEventListener('click', closeModal);
     document.getElementById('hikeForm').addEventListener('submit', handleSubmit);
     
-    // Filters
     document.getElementById('search').addEventListener('input', renderHikes);
     document.getElementById('filterDifficulty').addEventListener('change', renderHikes);
     document.getElementById('sortBy').addEventListener('change', renderHikes);
-    
-    // Export/Import (bonus feature)
-    setupExportImport();
-}
-
-function setupExportImport() {
-    // Add export/import buttons to header
-    const headerActions = document.querySelector('.header-actions');
-    const exportBtn = document.createElement('button');
-    exportBtn.id = 'exportBtn';
-    exportBtn.className = 'btn-secondary';
-    exportBtn.textContent = 'Export';
-    exportBtn.style.marginLeft = '8px';
-    exportBtn.onclick = exportData;
-    
-    const importBtn = document.createElement('button');
-    importBtn.id = 'importBtn';
-    importBtn.className = 'btn-secondary';
-    importBtn.textContent = 'Import';
-    importBtn.style.marginLeft = '8px';
-    importBtn.onclick = importData;
-    
-    headerActions.appendChild(exportBtn);
-    headerActions.appendChild(importBtn);
-}
-
-function exportData() {
-    const data = JSON.stringify(hikes, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `trail-dashboard-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-function importData() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        try {
-            const text = await file.text();
-            const imported = JSON.parse(text);
-            
-            if (Array.isArray(imported)) {
-                // Clear and re-add
-                for (const hike of imported) {
-                    hike.id = hike.id || Date.now() + Math.random();
-                    await dbUpdate(hike);
-                }
-                await refreshHikes();
-                alert(`Imported ${imported.length} hikes!`);
-            }
-        } catch (err) {
-            alert('Error importing: ' + err.message);
-        }
-    };
-    input.click();
 }
 
 // Modal Functions
@@ -347,7 +226,7 @@ function openModal(hikeId = null) {
     if (hikeId) {
         const hike = hikes.find(h => h.id === hikeId);
         if (hike) {
-            title.textContent = 'Edit Hike';
+            title.textContent = 'Edit Activity';
             document.getElementById('hikeId').value = hike.id;
             document.getElementById('trailName').value = hike.trailName || '';
             document.getElementById('location').value = hike.location || '';
@@ -355,19 +234,19 @@ function openModal(hikeId = null) {
             document.getElementById('distance').value = hike.distance || '';
             document.getElementById('elevation').value = hike.elevation || '';
             document.getElementById('duration').value = hike.duration || '';
-            document.getElementById('difficulty').value = hike.difficulty || 'Easy';
+            document.getElementById('difficulty').value = hike.type || 'Hike';
+            document.getElementById('difficulty2').value = hike.difficulty || 'Easy';
             document.getElementById('weather').value = hike.weather || '';
             document.getElementById('gear').value = hike.gear || '';
             document.getElementById('notes').value = hike.notes || '';
             
-            // Rating
             const rating = parseInt(hike.rating) || 5;
             document.querySelectorAll('input[name="rating"]').forEach(r => {
                 r.checked = parseInt(r.value) === rating;
             });
         }
     } else {
-        title.textContent = 'Add Hike';
+        title.textContent = 'Add Activity';
         document.getElementById('date').value = new Date().toISOString().split('T')[0];
     }
     
@@ -384,12 +263,13 @@ async function handleSubmit(e) {
     const id = document.getElementById('hikeId').value;
     const hike = {
         trailName: document.getElementById('trailName').value,
+        type: document.getElementById('difficulty').value,
         location: document.getElementById('location').value,
         date: document.getElementById('date').value,
         distance: parseFloat(document.getElementById('distance').value) || 0,
         elevation: parseInt(document.getElementById('elevation').value) || 0,
         duration: document.getElementById('duration').value,
-        difficulty: document.getElementById('difficulty').value,
+        difficulty: document.getElementById('difficulty2').value,
         weather: document.getElementById('weather').value,
         gear: document.getElementById('gear').value,
         notes: document.getElementById('notes').value,
@@ -397,23 +277,28 @@ async function handleSubmit(e) {
     };
     
     if (id) {
-        hike.id = parseFloat(id);
-        hike.updatedAt = new Date().toISOString();
-        await dbUpdate(hike);
+        const hikeRef = window.firebaseDoc(window.firebaseDb, 'hikes', id);
+        await window.firebaseUpdateDoc(hikeRef, {
+            ...hike,
+            updatedAt: window.firebaseServerTimestamp()
+        });
     } else {
-        hike.id = Date.now();
-        hike.createdAt = new Date().toISOString();
-        await dbAdd(hike);
+        await window.firebaseAddDoc(
+            window.firebaseCollection(window.firebaseDb, 'hikes'),
+            {
+                ...hike,
+                createdAt: window.firebaseServerTimestamp()
+            }
+        );
     }
     
     closeModal();
-    await refreshHikes();
 }
 
 async function deleteHike(id) {
-    if (confirm('Delete this hike?')) {
-        await dbDelete(id);
-        await refreshHikes();
+    if (confirm('Delete this activity?')) {
+        const hikeRef = window.firebaseDoc(window.firebaseDb, 'hikes', id);
+        await window.firebaseDeleteDoc(hikeRef);
     }
 }
 
