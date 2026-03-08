@@ -382,5 +382,9 @@ function getEstimatedDuration(miles) {
 }
 
 // Start
-alert("JavaScript is running!");
-initApp();
+alert("app.js loaded!");
+try {
+    initApp();
+} catch(e) {
+    alert("Error: " + e.message);
+}
