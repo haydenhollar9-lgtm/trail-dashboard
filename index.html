@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Outdoors Dashboard</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11/firebase-app.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11/firebase-firestore.js";
-
+    <!-- Firebase SDK (compat mode) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script>
         // Firebase config
         const firebaseConfig = {
             apiKey: "AIzaSyCHLIaIjQkEx-oKUF4JawU35OrT1i6ql1E",
@@ -21,20 +20,16 @@
         };
 
         // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
 
         // Make available globally
         window.firebaseDb = db;
-        window.firebaseCollection = collection;
-        window.firebaseAddDoc = addDoc;
-        window.firebaseUpdateDoc = updateDoc;
-        window.firebaseDeleteDoc = deleteDoc;
-        window.firebaseDoc = doc;
-        window.firebaseOnSnapshot = onSnapshot;
-        window.firebaseQuery = query;
-        window.firebaseOrderBy = orderBy;
-        window.firebaseServerTimestamp = serverTimestamp;
+        window.firebaseCollection = firebase.firestore.CollectionReference;
+        window.firebaseAddDoc = firebase.firestore.collection;
+        window.firebaseOnSnapshot = firebase.firestore.onSnapshot;
+        window.firebaseQuery = firebase.firestore.query;
+        window.firebaseOrderBy = firebase.firestore.orderBy;
     </script>
     <script src="app.js"></script>
 </head>
@@ -121,7 +116,7 @@
                 
                 <div class="form-row">
                     <label>Type</label>
-                    <select id="difficulty">
+                    <select id="activityType">
                         <option value="Hike">Hike</option>
                         <option value="Bike">Bike</option>
                         <option value="Run">Run</option>
@@ -158,7 +153,7 @@
                     </div>
                     <div class="form-row">
                         <label>Difficulty</label>
-                        <select id="difficulty2">
+                        <select id="difficulty">
                             <option value="Easy">Easy</option>
                             <option value="Moderate">Moderate</option>
                             <option value="Hard">Hard</option>
