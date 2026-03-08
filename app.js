@@ -1,12 +1,11 @@
 // Outdoors Dashboard - Firebase Firestore Edition (Compat SDK)
 
-let hikes = [];
-let unsubscribe = null;
+var hikes = [];
 
 // Wait for Firebase to initialize
 function waitForFirebase() {
-    return new Promise((resolve) => {
-        const check = () => {
+    return new Promise(function(resolve) {
+        var check = function() {
             if (window.firebaseDb) {
                 resolve();
             } else {
@@ -18,7 +17,7 @@ function waitForFirebase() {
 }
 
 // Sample activities for initial seeding
-const sampleTrails = [
+var sampleTrails = [
     { trailName: "Alum Cave Trail", location: "Great Smoky Mountains NP", distance: 5, elevation: 1150, difficulty: "Moderate", type: "Hike", rating: 5, notes: "Beautiful arch, scenic views, popular" },
     { trailName: "Abrams Falls", location: "Great Smoky Mountains NP", distance: 5, elevation: 780, difficulty: "Moderate", type: "Hike", rating: 5, notes: "20-ft waterfall, stunning gorge" },
     { trailName: "Grotto Falls", location: "Roaring Fork Motor Trail", distance: 2.6, elevation: 400, difficulty: "Easy", type: "Hike", rating: 4, notes: "Walk behind the waterfall" },
@@ -31,15 +30,14 @@ async function initApp() {
     await waitForFirebase();
     console.log("Firebase ready, connecting to Firestore...");
     
-    // Subscribe to Firestore collection
-    const hikesRef = window.firebaseDb.collection('hikes');
-    const q = window.firebaseDb.app_.firebase_.firestore().query(hikesRef, window.firebaseDb.app_.firebase_.firestore().orderBy('date', 'desc'));
+    // Get reference to hikes collection
+    var hikesRef = window.firebaseDb.collection('hikes');
     
-    // Using compat API
-    hikesRef.orderBy('date', 'desc').onSnapshot((snapshot) => {
+    // Subscribe to real-time updates
+    hikesRef.orderBy('date', 'desc').onSnapshot(function(snapshot) {
         hikes = [];
-        snapshot.forEach((doc) => {
-            hikes.push({ id: doc.id, ...doc.data() });
+        snapshot.forEach(function(doc) {
+            hikes.push({ id: doc.id, data: doc.data() });
         });
         
         console.log("Loaded hikes:", hikes.length);
@@ -51,7 +49,7 @@ async function initApp() {
         } else {
             renderAll();
         }
-    }, (error) => {
+    }, function(error) {
         console.error("Firestore error:", error);
     });
     
@@ -65,48 +63,70 @@ async function initApp() {
 }
 
 // Seed sample data
-async function seedData() {
-    for (const trail of sampleTrails) {
-        const hike = {
-            ...trail,
+function seedData() {
+    var batch = window.firebaseDb.batch();
+    var count = 0;
+    
+    sampleTrails.forEach(function(trail) {
+        var hikeRef = window.firebaseDb.collection('hikes').doc();
+        var hike = {
+            trailName: trail.trailName,
+            location: trail.location,
+            distance: trail.distance,
+            elevation: trail.elevation,
+            difficulty: trail.difficulty,
+            type: trail.type || 'Hike',
+            rating: trail.rating,
+            notes: trail.notes,
             date: getRandomDate(),
             duration: getEstimatedDuration(trail.distance),
             weather: "Clear, 65°F",
             gear: "Hiking boots, water, snacks",
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        
-        await window.firebaseDb.collection('hikes').add(hike);
-    }
-    console.log("Sample data seeded");
+        batch.set(hikeRef, hike);
+        count++;
+    });
+    
+    batch.commit().then(function() {
+        console.log("Sample data seeded:", count);
+    }).catch(function(err) {
+        console.error("Error seeding data:", err);
+    });
 }
 
 // Stats Calculations
 function calculateStats(hikesData) {
-    const totalHikes = hikesData.length;
-    const totalMiles = hikesData.reduce((sum, h) => sum + (parseFloat(h.distance) || 0), 0);
-    const totalElevation = hikesData.reduce((sum, h) => sum + (parseInt(h.elevation) || 0), 0);
-    const streak = calculateStreak(hikesData);
+    var totalHikes = hikesData.length;
+    var totalMiles = hikesData.reduce(function(sum, h) { 
+        return sum + (parseFloat(h.data ? h.data.distance : h.distance) || 0); 
+    }, 0);
+    var totalElevation = hikesData.reduce(function(sum, h) { 
+        return sum + (parseInt(h.data ? h.data.elevation : h.elevation) || 0); 
+    }, 0);
+    var streak = calculateStreak(hikesData);
     
-    return { totalHikes, totalMiles, totalElevation, streak };
+    return { totalHikes: totalHikes, totalMiles: totalMiles, totalElevation: totalElevation, streak: streak };
 }
 
 function calculateStreak(hikesData) {
     if (hikesData.length === 0) return 0;
     
-    const dates = [...new Set(hikesData.map(h => h.date))].sort().reverse();
+    var dates = hikesData.map(function(h) { return h.data ? h.data.date : h.date; });
+    dates = dates.filter(function(d) { return d; });
+    dates = [...new Set(dates)].sort().reverse();
     if (dates.length === 0) return 0;
     
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    var today = new Date().toISOString().split('T')[0];
+    var yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     
     if (dates[0] !== today && dates[0] !== yesterday) return 0;
     
-    let streak = 1;
-    for (let i = 1; i < dates.length; i++) {
-        const current = new Date(dates[i - 1]);
-        const prev = new Date(dates[i]);
-        const diff = (current - prev) / 86400000;
+    var streak = 1;
+    for (var i = 1; i < dates.length; i++) {
+        var current = new Date(dates[i - 1]);
+        var prev = new Date(dates[i]);
+        var diff = (current - prev) / 86400000;
         
         if (diff === 1) streak++;
         else break;
@@ -117,16 +137,26 @@ function calculateStreak(hikesData) {
 
 // Goal Progress
 function calculateGoals(hikesData) {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth();
+    var currentYear = new Date().getFullYear();
+    var currentMonth = new Date().getMonth();
     
-    const yearHikes = hikesData.filter(h => h.date && h.date.startsWith(currentYear));
-    const monthHikes = hikesData.filter(h => h.date && h.date.startsWith(`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`));
+    var yearHikes = hikesData.filter(function(h) { 
+        var d = h.data ? h.data.date : h.date;
+        return d && d.startsWith(currentYear);
+    });
+    var monthHikes = hikesData.filter(function(h) { 
+        var d = h.data ? h.data.date : h.date;
+        return d && d.startsWith(currentYear + '-' + String(currentMonth + 1).padStart(2, '0');
+    });
     
-    const yearMiles = yearHikes.reduce((sum, h) => sum + (parseFloat(h.distance) || 0), 0);
-    const monthMiles = monthHikes.reduce((sum, h) => sum + (parseFloat(h.distance) || 0), 0);
+    var yearMiles = yearHikes.reduce(function(sum, h) { 
+        return sum + (parseFloat(h.data ? h.data.distance : h.distance) || 0); 
+    }, 0);
+    var monthMiles = monthHikes.reduce(function(sum, h) { 
+        return sum + (parseFloat(h.data ? h.data.distance : h.distance) || 0); 
+    }, 0);
     
-    return { yearMiles, monthMiles };
+    return { yearMiles: yearMiles, monthMiles: monthMiles };
 }
 
 // Render Functions
@@ -137,7 +167,7 @@ function renderAll() {
 }
 
 function renderStats() {
-    const stats = calculateStats(hikes);
+    var stats = calculateStats(hikes);
     
     document.getElementById('totalHikes').textContent = stats.totalHikes;
     document.getElementById('totalMiles').textContent = stats.totalMiles.toFixed(1);
@@ -146,70 +176,74 @@ function renderStats() {
 }
 
 function renderGoals() {
-    const goals = calculateGoals(hikes);
-    const yearGoal = 100;
-    const monthGoal = 20;
+    var goals = calculateGoals(hikes);
+    var yearGoal = 100;
+    var monthGoal = 20;
     
-    document.getElementById('yearMiles').textContent = `${goals.yearMiles.toFixed(1)} / ${yearGoal}`;
-    document.getElementById('yearProgress').style.width = `${Math.min((goals.yearMiles / yearGoal) * 100, 100)}%`;
+    document.getElementById('yearMiles').textContent = goals.yearMiles.toFixed(1) + ' / ' + yearGoal;
+    document.getElementById('yearProgress').style.width = Math.min((goals.yearMiles / yearGoal) * 100, 100) + '%';
     
-    document.getElementById('monthMiles').textContent = `${goals.monthMiles.toFixed(1)} / ${monthGoal}`;
-    document.getElementById('monthProgress').style.width = `${Math.min((goals.monthMiles / monthGoal) * 100, 100)}%`;
+    document.getElementById('monthMiles').textContent = goals.monthMiles.toFixed(1) + ' / ' + monthGoal;
+    document.getElementById('monthProgress').style.width = Math.min((goals.monthMiles / monthGoal) * 100, 100) + '%';
 }
 
 function renderHikes() {
-    const search = document.getElementById('search').value.toLowerCase();
-    const filterType = document.getElementById('filterDifficulty').value;
-    const sortBy = document.getElementById('sortBy').value;
+    var search = document.getElementById('search').value.toLowerCase();
+    var filterType = document.getElementById('filterDifficulty').value;
+    var sortBy = document.getElementById('sortBy').value;
     
-    let filtered = hikes.filter(hike => {
-        const matchSearch = !search || 
-            hike.trailName?.toLowerCase().includes(search) || 
-            hike.location?.toLowerCase().includes(search);
-        const matchType = !filterType || hike.type === filterType;
+    var filtered = hikes.filter(function(h) {
+        var data = h.data || h;
+        var matchSearch = !search || 
+            (data.trailName && data.trailName.toLowerCase().includes(search)) || 
+            (data.location && data.location.toLowerCase().includes(search));
+        var matchType = !filterType || data.type === filterType;
         return matchSearch && matchType;
     });
     
     // Sort
-    filtered.sort((a, b) => {
-        if (sortBy === 'date') return new Date(b.date) - new Date(a.date);
-        if (sortBy === 'miles') return (parseFloat(b.distance) || 0) - (parseFloat(a.distance) || 0);
-        if (sortBy === 'rating') return (parseInt(b.rating) || 0) - (parseInt(a.rating) || 0);
+    filtered.sort(function(a, b) {
+        var aData = a.data || a;
+        var bData = b.data || b;
+        if (sortBy === 'date') return new Date(bData.date) - new Date(aData.date);
+        if (sortBy === 'miles') return (parseFloat(bData.distance) || 0) - (parseFloat(aData.distance) || 0);
+        if (sortBy === 'rating') return (parseInt(bData.rating) || 0) - (parseInt(aData.rating) || 0);
         return 0;
     });
     
-    const container = document.getElementById('hikesList');
-    container.innerHTML = filtered.map(hike => `
-        <div class="hike-card">
-            <div class="hike-header">
-                <h3>${hike.trailName}</h3>
-                <div class="hike-rating">${'⭐'.repeat(parseInt(hike.rating) || 0)}</div>
-            </div>
-            <div class="hike-meta">
-                <span>📍 ${hike.location || 'Unknown'}</span>
-                <span>📅 ${hike.date || 'N/A'}</span>
-                <span>${hike.type || 'Hike'}</span>
-            </div>
-            <div class="hike-stats">
-                <span>🥾 ${hike.distance || '?'} mi</span>
-                <span>⛰️ ${hike.elevation || '?'} ft</span>
-                <span>⏱️ ${hike.duration || '?'}</span>
-                <span class="difficulty-${hike.difficulty?.toLowerCase()}">${hike.difficulty || '?'}</span>
-            </div>
-            ${hike.weather ? `<div class="hike-weather">🌤️ ${hike.weather}</div>` : ''}
-            ${hike.gear ? `<div class="hike-gear">🎒 ${hike.gear}</div>` : ''}
-            ${hike.notes ? `<div class="hike-notes">📝 ${hike.notes}</div>` : ''}
-            <div class="hike-actions">
-                <button onclick="editHike('${hike.id}')" class="btn-small">Edit</button>
-                <button onclick="deleteHike('${hike.id}')" class="btn-small btn-danger">Delete</button>
-            </div>
-        </div>
-    `).join('');
+    var container = document.getElementById('hikesList');
+    container.innerHTML = filtered.map(function(h) {
+        var d = h.data || h;
+        return '<div class="hike-card">' +
+            '<div class="hike-header">' +
+                '<h3>' + (d.trailName || '') + '</h3>' +
+                '<div class="hike-rating">' + '⭐'.repeat(parseInt(d.rating) || 0) + '</div>' +
+            '</div>' +
+            '<div class="hike-meta">' +
+                '<span>📍 ' + (d.location || 'Unknown') + '</span>' +
+                '<span>📅 ' + (d.date || 'N/A') + '</span>' +
+                '<span>' + (d.type || 'Hike') + '</span>' +
+            '</div>' +
+            '<div class="hike-stats">' +
+                '<span>🥾 ' + (d.distance || '?') + ' mi</span>' +
+                '<span>⛰️ ' + (d.elevation || '?') + ' ft</span>' +
+                '<span>⏱️ ' + (d.duration || '?') + '</span>' +
+                '<span class="difficulty-' + (d.difficulty || '').toLowerCase() + '">' + (d.difficulty || '?') + '</span>' +
+            '</div>' +
+            (d.weather ? '<div class="hike-weather">🌤️ ' + d.weather + '</div>' : '') +
+            (d.gear ? '<div class="hike-gear">🎒 ' + d.gear + '</div>' : '') +
+            (d.notes ? '<div class="hike-notes">📝 ' + d.notes + '</div>' : '') +
+            '<div class="hike-actions">' +
+                '<button onclick="editHike(\'' + h.id + '\')" class="btn-small">Edit</button>' +
+                '<button onclick="deleteHike(\'' + h.id + '\')" class="btn-small btn-danger">Delete</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
 }
 
 // Event Listeners
 function setupEventListeners() {
-    document.getElementById('addBtn').addEventListener('click', () => openModal());
+    document.getElementById('addBtn').addEventListener('click', function() { openModal(); });
     document.getElementById('closeModal').addEventListener('click', closeModal);
     document.getElementById('cancelBtn').addEventListener('click', closeModal);
     document.getElementById('hikeForm').addEventListener('submit', handleSubmit);
@@ -220,33 +254,34 @@ function setupEventListeners() {
 }
 
 // Modal Functions
-function openModal(hikeId = null) {
-    const modal = document.getElementById('hikeModal');
-    const title = document.getElementById('modalTitle');
-    const form = document.getElementById('hikeForm');
+function openModal(hikeId) {
+    var modal = document.getElementById('hikeModal');
+    var title = document.getElementById('modalTitle');
+    var form = document.getElementById('hikeForm');
     
     form.reset();
     document.getElementById('hikeId').value = '';
     
     if (hikeId) {
-        const hike = hikes.find(h => h.id === hikeId);
+        var hike = hikes.find(function(h) { return h.id === hikeId; });
         if (hike) {
+            var d = hike.data || hike;
             title.textContent = 'Edit Activity';
             document.getElementById('hikeId').value = hike.id;
-            document.getElementById('trailName').value = hike.trailName || '';
-            document.getElementById('activityType').value = hike.type || 'Hike';
-            document.getElementById('location').value = hike.location || '';
-            document.getElementById('date').value = hike.date || '';
-            document.getElementById('distance').value = hike.distance || '';
-            document.getElementById('elevation').value = hike.elevation || '';
-            document.getElementById('duration').value = hike.duration || '';
-            document.getElementById('difficulty').value = hike.difficulty || 'Easy';
-            document.getElementById('weather').value = hike.weather || '';
-            document.getElementById('gear').value = hike.gear || '';
-            document.getElementById('notes').value = hike.notes || '';
+            document.getElementById('trailName').value = d.trailName || '';
+            document.getElementById('activityType').value = d.type || 'Hike';
+            document.getElementById('location').value = d.location || '';
+            document.getElementById('date').value = d.date || '';
+            document.getElementById('distance').value = d.distance || '';
+            document.getElementById('elevation').value = d.elevation || '';
+            document.getElementById('duration').value = d.duration || '';
+            document.getElementById('difficulty').value = d.difficulty || 'Easy';
+            document.getElementById('weather').value = d.weather || '';
+            document.getElementById('gear').value = d.gear || '';
+            document.getElementById('notes').value = d.notes || '';
             
-            const rating = parseInt(hike.rating) || 5;
-            document.querySelectorAll('input[name="rating"]').forEach(r => {
+            var rating = parseInt(d.rating) || 5;
+            document.querySelectorAll('input[name="rating"]').forEach(function(r) {
                 r.checked = parseInt(r.value) === rating;
             });
         }
@@ -262,11 +297,11 @@ function closeModal() {
     document.getElementById('hikeModal').style.display = 'none';
 }
 
-async function handleSubmit(e) {
+function handleSubmit(e) {
     e.preventDefault();
     
-    const id = document.getElementById('hikeId').value;
-    const hike = {
+    var id = document.getElementById('hikeId').value;
+    var hike = {
         trailName: document.getElementById('trailName').value,
         type: document.getElementById('activityType').value,
         location: document.getElementById('location').value,
@@ -278,18 +313,39 @@ async function handleSubmit(e) {
         weather: document.getElementById('weather').value,
         gear: document.getElementById('gear').value,
         notes: document.getElementById('notes').value,
-        rating: parseInt(document.querySelector('input[name="rating"]:checked')?.value) || 5
+        rating: parseInt(document.querySelector('input[name="rating"]:checked') ? document.querySelector('input[name="rating"]:checked').value : 5) || 5
     };
     
     if (id) {
-        const hikeRef = window.firebaseDb.collection('hikes').doc(id);
-        await hikeRef.update({
-            ...hike,
+        window.firebaseDb.collection('hikes').doc(id).update({
+            trailName: hike.trailName,
+            type: hike.type,
+            location: hike.location,
+            date: hike.date,
+            distance: hike.distance,
+            elevation: hike.elevation,
+            duration: hike.duration,
+            difficulty: hike.difficulty,
+            weather: hike.weather,
+            gear: hike.gear,
+            notes: hike.notes,
+            rating: hike.rating,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
     } else {
-        await window.firebaseDb.collection('hikes').add({
-            ...hike,
+        window.firebaseDb.collection('hikes').add({
+            trailName: hike.trailName,
+            type: hike.type,
+            location: hike.location,
+            date: hike.date,
+            distance: hike.distance,
+            elevation: hike.elevation,
+            duration: hike.duration,
+            difficulty: hike.difficulty,
+            weather: hike.weather,
+            gear: hike.gear,
+            notes: hike.notes,
+            rating: hike.rating,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
     }
@@ -297,29 +353,33 @@ async function handleSubmit(e) {
     closeModal();
 }
 
-async function deleteHike(id) {
+function deleteHike(id) {
     if (confirm('Delete this activity?')) {
-        await window.firebaseDb.collection('hikes').doc(id).delete();
+        window.firebaseDb.collection('hikes').doc(id).delete();
     }
 }
 
-window.editHike = openModal;
+window.editHike = openHike;
 window.deleteHike = deleteHike;
+
+function openHike(id) {
+    openModal(id);
+}
 
 // Helpers
 function getRandomDate() {
-    const start = new Date('2025-01-01');
-    const end = new Date();
-    const date = new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+    var start = new Date('2025-01-01');
+    var end = new Date();
+    var date = new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
     return date.toISOString().split('T')[0];
 }
 
 function getEstimatedDuration(miles) {
-    const hours = miles / 2;
-    const h = Math.floor(hours);
-    const m = Math.round((hours - h) * 60);
-    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    var hours = miles / 2;
+    var h = Math.floor(hours);
+    var m = Math.round((hours - h) * 60);
+    return m > 0 ? h + 'h ' + m + 'm' : h + 'h';
 }
 
 // Start
-initApp();
+console.log("app.js loaded, waiting for window load...");
