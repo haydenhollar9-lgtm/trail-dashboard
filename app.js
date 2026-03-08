@@ -382,4 +382,4 @@ function getEstimatedDuration(miles) {
 }
 
 // Start
-console.log("app.js loaded, waiting for window load...");
+initApp();
