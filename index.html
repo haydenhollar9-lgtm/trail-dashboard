@@ -197,5 +197,26 @@
     </div>
 
     <script src="app.js"></script>
+    <script>
+        // Global error handler
+        window.onerror = function(msg, url, line, col, error) {
+            console.error("GLOBAL ERROR:", msg, "at line", line);
+            document.body.innerHTML += "<div style='color:red;padding:20px;'><h3>Error: "+msg+"</h3><p>Line: "+line+"</p></div>";
+            return true;
+        };
+        
+        // Debug: ensure app.js loaded
+        console.log("HTML loaded, waiting for app.js...");
+        window.addEventListener('load', function() {
+            console.log("Window loaded");
+            if (typeof initApp === 'function') {
+                console.log("initApp found, starting...");
+                initApp();
+            } else {
+                console.error("initApp not found! Check if app.js loaded properly.");
+                document.body.innerHTML += "<div style='color:red;padding:20px;'><h3>Error: app.js not loaded properly</h3></div>";
+            }
+        });
+    </script>
 </body>
 </html>
